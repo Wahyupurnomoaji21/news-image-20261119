@@ -1,4 +1,4 @@
-"""News image entry for 19 November 2026 (Python 3.13, stdlib only).
+"""News image entry v3 for 19 November 2026 (Python 3.13, stdlib only).
 
 The front-page image lives in this repository as entry.png; the program
 copies it byte for byte to /output/entry.png. No network, no randomness,
