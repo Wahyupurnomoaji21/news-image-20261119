@@ -1,36 +1,47 @@
-"""News image entry v3 for 19 November 2026 (Python 3.13, stdlib only).
+#!/usr/bin/env python3
+"""Copy the composed front page to the make.fun output directory.
 
-The front-page image lives in this repository as entry.png; the program
-copies it byte for byte to /output/entry.png. No network, no randomness,
-no timestamps in the output, so both grader runs write identical bytes.
+The entry image is rendered by compose.py (same directory) and copied
+here byte-for-byte -- this script does no rendering, no resizing and
+no network access. The output must stay under 1 MiB (1,048,576 bytes).
 
-Local check:
+Local check (from this directory):
     mkdir -p out && MAKEFUN_OUTPUT_DIR=out python3 main.py
+Then compare the copy with the source:
+    cmp entry.png out/entry.png && sha256sum entry.png out/entry.png
+The two hashes must match exactly.
 """
 
 import hashlib
 import os
-import shutil
-from pathlib import Path
+import sys
 
-HERE = Path(__file__).resolve().parent
-SOURCE = HERE / "entry.png"
-LIMIT_BYTES = 1_048_576
+HERE = os.path.dirname(os.path.abspath(__file__))
+SRC = os.path.join(HERE, "entry.png")
+MAX_BYTES = 1_048_576
 
 
-def main() -> None:
-    out_dir = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
-    out_dir.mkdir(parents=True, exist_ok=True)
-    target = out_dir / "entry.png"
-    shutil.copyfile(SOURCE, target)
-    data = target.read_bytes()
-    if len(data) > LIMIT_BYTES:
-        raise SystemExit(
-            f"entry.png is {len(data)} bytes, over the 1 MiB limit"
-        )
+def main():
+    out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")
+    if not os.path.isfile(SRC):
+        print(f"error: source image not found: {SRC}", file=sys.stderr)
+        print("run: python3 compose.py", file=sys.stderr)
+        return 1
+    with open(SRC, "rb") as fh:
+        data = fh.read()
+    if len(data) > MAX_BYTES:
+        print(f"error: entry.png is {len(data)} bytes, over the "
+              f"{MAX_BYTES} byte limit", file=sys.stderr)
+        return 1
+    os.makedirs(out_dir, exist_ok=True)
+    dest = os.path.join(out_dir, "entry.png")
+    with open(dest, "wb") as fh:
+        fh.write(data)
     digest = hashlib.sha256(data).hexdigest()
-    print(f"wrote {target} ({len(data)} bytes, sha256 {digest})")
+    print(f"copied {len(data)} bytes to {dest}")
+    print(f"sha256: {digest}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -1,37 +1,13 @@
-"""Compose the v3 front page for 19 November 2026 (1024x1024).
+#!/usr/bin/env python3
+"""Compose the v3 front page for news-image-20261119 as entry.png.
 
-v3 redesign vs v2 (same verified facts, different rendering):
-- Hero photograph taller (976x252) with a sharper three-flag
-  handshake shot; the date in the dateline grows to 22 pt bold so
-  the day the page sums up is unmistakable at a glance.
-- Headline grows to 48 pt with a tighter two-line set; lead body
-  shortens to three lines per column at 15 pt, so the page breathes.
-- Four pictured stories instead of three: Cyclone Akvan joins the
-  Gulf war, the Jeffries nomination and the GTA VI launch, each clear
-  from its own photograph and headline (the judge's "reads" test).
-- IN BRIEF becomes three wide columns with larger type (EU loan,
-  Voyager 1, Pew), trading one dense item for legibility at 300 px.
-
-Five realistic press-style photographs, Times-style serif type, photo
-captions and three-column body copy.
-
-Every headline was checked against real reporting of 18-19 November
-2026 (Reuters/AP/BBC/NASA/Pew via search, 19 Nov 2026): the Shenzhen
-trilateral was scheduled for Thursday; US jets struck Qeshm Island
-on 17 Nov and Iranian drones reached Bahrain and Kuwait overnight,
-with the tanker Tara Gas catching fire in the Strait (BBC/Trends
-MENA, 19 Nov); House Democrats nominated Hakeem Jeffries for
-Speaker and Mary Peltola's Alaska win sealed a 56-44 Senate majority
-(AP, 17-18 Nov); GTA VI rolled out worldwide on 19 Nov (AP); the EU
-proposed a 45bn euro Ukraine loan, Cyclone Akvan neared India, NASA
-marked Voyager 1's light-day on 19 Nov, and Pew projected Islam as
-the largest faith by 2035 (18-19 Nov).
-
-Run: python3 compose.py  ->  writes entry.png beside this file.
+Page: 1024x1024 broadsheet front page, "THE WORLD TODAY", dated
+Thursday, November 19, 2026. All photos are local files under assets/,
+rendered with Pillow only; no network access is used anywhere.
+Run:  python3 compose.py
 """
 
 import os
-
 from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -39,129 +15,165 @@ ASSETS = os.path.join(HERE, "assets")
 OUT = os.path.join(HERE, "entry.png")
 
 PAGE_W, PAGE_H = 1024, 1024
+MARGIN = 24
+RIGHT = 1000
+CONTENT_W = RIGHT - MARGIN  # 976
+
 PAPER = (247, 243, 235)
 INK = (16, 16, 16)
 RED = (158, 16, 16)
 GREY = (88, 84, 76)
-BODY_INK = (38, 36, 33)
-MARGIN = 24
-RIGHT = 1000
+BODY = (38, 36, 33)
 
-SERIF = "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf"
-SERIF_BOLD = "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf"
-SERIF_ITALIC = "/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf"
-SANS = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
-SANS_BOLD = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+FONT_DIR = "/usr/share/fonts/truetype/liberation"
+SERIF = os.path.join(FONT_DIR, "LiberationSerif-Regular.ttf")
+SERIF_BOLD = os.path.join(FONT_DIR, "LiberationSerif-Bold.ttf")
+SERIF_ITALIC = os.path.join(FONT_DIR, "LiberationSerif-Italic.ttf")
+SANS = os.path.join(FONT_DIR, "LiberationSans-Regular.ttf")
+SANS_BOLD = os.path.join(FONT_DIR, "LiberationSans-Bold.ttf")
 
 
 def font(path, size):
     return ImageFont.truetype(path, size)
 
 
-def fit(im, tw, th, focus=0.5):
-    """Crop to the target aspect, then resize. Focus 0 = top of frame."""
-    sw, sh = im.size
-    want = tw / th
-    if sw / sh > want:
-        nw = int(sh * want)
-        x0 = int((sw - nw) * 0.5)
-        box = (x0, 0, x0 + nw, sh)
-    else:
-        nh = int(sw / want)
-        y0 = int((sh - nh) * focus)
-        box = (0, y0, sw, y0 + nh)
-    return im.crop(box).resize((tw, th), Image.LANCZOS)
-
-
-def wrap_text(d, text, fnt, max_w):
-    lines, cur = [], ""
-    for word in text.split():
-        trial = word if not cur else cur + " " + word
-        if d.textlength(trial, font=fnt) <= max_w:
-            cur = trial
-        else:
-            if cur:
-                lines.append(cur)
-            cur = word
-    if cur:
-        lines.append(cur)
+def wrap_text(draw, text, fnt, max_width):
+    """Greedy word wrap; returns a list of lines fitting max_width px."""
+    lines = []
+    for paragraph in text.split("\n"):
+        words = paragraph.split()
+        if not words:
+            lines.append("")
+            continue
+        current = words[0]
+        for word in words[1:]:
+            trial = current + " " + word
+            if draw.textlength(trial, font=fnt) <= max_width:
+                current = trial
+            else:
+                lines.append(current)
+                current = word
+        lines.append(current)
     return lines
 
 
-def centred(d, y, text, fnt, fill=INK, x0=0, x1=PAGE_W):
-    w = d.textlength(text, font=fnt)
-    d.text(((x0 + x1 - w) / 2, y), text, font=fnt, fill=fill)
+def draw_centred(draw, y, text, fnt, fill, centre_x=512):
+    """Draw text centred on centre_x with its top at y; returns its width."""
+    width = draw.textlength(text, font=fnt)
+    draw.text((centre_x - width / 2, y), text, font=fnt, fill=fill)
+    return width
 
 
-def rule(d, y, x0=MARGIN, x1=RIGHT, fill=INK, width=1):
-    d.line([(x0, y), (x1, y)], fill=fill, width=width)
+def hrule(draw, y, thickness, fill, x0=MARGIN, x1=RIGHT):
+    """Draw a horizontal rule of the given thickness starting at y."""
+    draw.rectangle([x0, y, x1, y + thickness - 1], fill=fill)
+    return y + thickness
 
 
-def put_photo(d, page, path, x, y, w, h, focus=0.5):
-    im = Image.open(path).convert("RGB")
-    page.paste(fit(im, w, h, focus), (x, y))
-    d.rectangle([x, y, x + w - 1, y + h - 1], outline=(70, 70, 70), width=1)
+def paste_photo(img, path, x, y, w, h, focus_y=0.42):
+    """Centre-crop a photo to w:h (focus_y = vertical focus, 0..1),
+    resize with LANCZOS, paste it, and draw a thin dark border."""
+    photo = Image.open(path).convert("RGB")
+    sw, sh = photo.size
+    target = w / h
+    src = sw / sh
+    if src > target:
+        # Too wide: crop the sides, keep the full height.
+        crop_w = int(sh * target)
+        left = (sw - crop_w) // 2
+        box = (left, 0, left + crop_w, sh)
+    else:
+        # Too tall: crop top/bottom around the focus point.
+        crop_h = int(sw / target)
+        centre = int(sh * focus_y)
+        top = max(0, min(sh - crop_h, centre - crop_h // 2))
+        box = (0, top, sw, top + crop_h)
+    photo = photo.crop(box).resize((w, h), Image.LANCZOS)
+    img.paste(photo, (x, y))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([x, y, x + w - 1, y + h - 1], outline=INK, width=1)
+    return y + h
 
 
-def column(d, x, y, w, text, fnt, leading=19):
-    for line in wrap_text(d, text, fnt, w):
-        d.text((x, y), line, font=fnt, fill=BODY_INK)
+def draw_column(draw, x, y, text, fnt, width, leading):
+    """Draw wrapped body text in a column; returns the y it ends at."""
+    lines = wrap_text(draw, text, fnt, width)
+    for line in lines:
+        draw.text((x, y), line, font=fnt, fill=BODY)
         y += leading
     return y
 
 
 def main():
-    page = Image.new("RGB", (PAGE_W, PAGE_H), PAPER)
-    d = ImageDraw.Draw(page)
+    img = Image.new("RGB", (PAGE_W, PAGE_H), PAPER)
+    draw = ImageDraw.Draw(img)
+    y = 8
 
-    # --- Masthead -------------------------------------------------------
-    centred(d, 6, "THE WORLD TODAY", font(SERIF_BOLD, 64))
-    rule(d, 80, width=3)
-    rule(d, 85, width=1)
-    d.text((MARGIN, 92), "LATE CITY EDITION", font=font(SANS_BOLD, 13),
-           fill=GREY)
-    centred(d, 90, "THURSDAY, NOVEMBER 19, 2026", font(SANS_BOLD, 22))
+    # --- Masthead ---
+    mast = font(SERIF_BOLD, 64)
+    draw_centred(draw, y, "THE WORLD TODAY", mast, INK)
+    y += 72
+    y = hrule(draw, y, 3, INK)
+    y += 3
+    y = hrule(draw, y, 1, INK)
+    y += 6
+
+    # --- Dateline row ---
+    date_font = font(SANS_BOLD, 22)
+    side_font = font(SANS_BOLD, 13)
+    draw.text((MARGIN, y + 5), "LATE CITY EDITION", font=side_font, fill=GREY)
+    draw_centred(draw, y, "THURSDAY, NOVEMBER 19, 2026", date_font, INK)
     price = "PRICE $2.50"
-    d.text((RIGHT - d.textlength(price, font=font(SANS_BOLD, 13)), 92),
-           price, font=font(SANS_BOLD, 13), fill=GREY)
-    rule(d, 116, fill=RED, width=1)
+    draw.text((RIGHT - draw.textlength(price, font=side_font), y + 5),
+              price, font=side_font, fill=GREY)
+    y += 30
+    y = hrule(draw, y, 1, RED)
+    y += 8
 
-    # --- Lead headline above the photograph -----------------------------
-    d.text((MARGIN, 124), "SUMMIT IN SHENZHEN  \u2022  APEC",
-           font=font(SANS_BOLD, 18), fill=RED)
-    y = 146
-    for line in ("THREE PRESIDENTS, ONE TABLE",
-                 "AND THE WHOLE WORLD WATCHING"):
-        d.text((MARGIN, y), line, font=font(SERIF_BOLD, 48), fill=INK)
-        y += 54
+    # --- Kicker + headline + deck + byline ---
+    draw.text((MARGIN, y), "SUMMIT IN SHENZHEN  \u2022  APEC",
+              font=font(SANS_BOLD, 18), fill=RED)
+    y += 26
+    head_font = font(SERIF_BOLD, 48)
+    draw.text((MARGIN, y), "THREE PRESIDENTS, ONE TABLE",
+              font=head_font, fill=INK)
+    y += 54
+    draw.text((MARGIN, y), "AND THE WHOLE WORLD WATCHING",
+              font=head_font, fill=INK)
+    y += 56
+    deck_font = font(SANS, 16)
     deck = ("First trilateral of sitting U.S., Chinese and Russian leaders "
             "puts Ukraine, Iran, nuclear arms, AI and trade on the table.")
+    for line in wrap_text(draw, deck, deck_font, CONTENT_W):
+        draw.text((MARGIN, y), line, font=deck_font, fill=BODY)
+        y += 20
     y += 2
-    for line in wrap_text(d, deck, font(SANS, 16), 976):
-        d.text((MARGIN, y), line, font=font(SANS, 16), fill=(52, 50, 46))
-        y += 21
-    y += 4
-    d.text((MARGIN, y), "By THE WORLD TODAY STAFF",
-           font=font(SANS_BOLD, 11), fill=GREY)
-    byline_r = "SHENZHEN, WASHINGTON AND LONDON"
-    d.text((RIGHT - d.textlength(byline_r, font=font(SANS_BOLD, 11)), y),
-           byline_r, font=font(SANS_BOLD, 11), fill=GREY)
-    y += 18
+    by_font = font(SANS_BOLD, 11)
+    draw.text((MARGIN, y), "By THE WORLD TODAY STAFF",
+              font=by_font, fill=GREY)
+    right_by = "SHENZHEN, WASHINGTON AND LONDON"
+    draw.text((RIGHT - draw.textlength(right_by, font=by_font), y),
+              right_by, font=by_font, fill=GREY)
+    y += 16
 
-    # --- Lead photograph, taller than v2 --------------------------------
-    put_photo(d, page, os.path.join(ASSETS, "summit-v3.webp"),
-              MARGIN, y, 976, 252, focus=0.42)
-    y += 252 + 6
+    # --- Hero photo + caption ---
+    y = paste_photo(img, os.path.join(ASSETS, "summit-v3.webp"),
+                    MARGIN, y, CONTENT_W, 252, focus_y=0.42)
+    draw = ImageDraw.Draw(img)
+    y += 6
+    cap_font = font(SERIF_ITALIC, 13)
     caption = ("Trump, Xi and Putin at the table in Shenzhen on Wednesday, "
                "ahead of the first trilateral meeting of sitting U.S., "
                "Chinese and Russian presidents on Thursday.")
-    for line in wrap_text(d, caption, font(SERIF_ITALIC, 13), 976):
-        d.text((MARGIN, y), line, font=font(SERIF_ITALIC, 13), fill=GREY)
+    for line in wrap_text(draw, caption, cap_font, CONTENT_W):
+        draw.text((MARGIN, y), line, font=cap_font, fill=GREY)
         y += 17
     y += 4
 
-    # --- Lead body, three short columns ---------------------------------
-    cols = [
+    # --- Lead body: three columns ---
+    lead_font = font(SERIF, 15)
+    col_w, gutter = 312, 20
+    lead_texts = [
         ("SHENZHEN \u2014 Donald Trump, Xi Jinping and Vladimir Putin meet "
          "on Thursday for the first trilateral of sitting American, "
          "Chinese and Russian presidents."),
@@ -170,61 +182,55 @@ def main():
         ("Trump arrived on Wednesday, welcomed by Xi, then shook hands "
          "with Putin at the APEC welcome event."),
     ]
-    col_w = 312
-    body_end = y
-    for i, text in enumerate(cols):
-        end = column(d, MARGIN + i * (col_w + 20), y, col_w,
-                     text, font(SERIF, 15), leading=19)
-        body_end = max(body_end, end)
-    y = body_end + 6
-    rule(d, y, width=2)
-    y += 8
-    d.text((MARGIN, y), "THE DAY IN PICTURES", font=font(SANS_BOLD, 14),
-           fill=RED)
+    end_y = y
+    for i, text in enumerate(lead_texts):
+        x = MARGIN + i * (col_w + gutter)
+        end_y = max(end_y, draw_column(draw, x, y, text, lead_font,
+                                       col_w, 19))
+    y = end_y + 6
+
+    # --- The Day in Pictures ---
+    y = hrule(draw, y, 2, INK)
+    y += 6
+    label_font = font(SANS_BOLD, 14)
+    draw.text((MARGIN, y), "THE DAY IN PICTURES", font=label_font, fill=RED)
     y += 22
-
-    # --- Four pictured stories ------------------------------------------
     stories = [
-        ("gulf-v3.webp",
-         "GULF WAR WIDENS AS U.S. STRIKES IRAN",
+        ("gulf-v3.webp", "GULF WAR WIDENS AS U.S. STRIKES IRAN",
          "A tanker burns in the Strait as Iranian drones reach Kuwait "
-         "and Bahrain.",
-         0.5),
-        ("senate-v3.webp",
-         "JEFFRIES SET TO BE FIRST BLACK SPEAKER",
-         "Democrats nominate him; Peltola's win seals a 56\u201344 "
-         "majority.",
-         0.45),
-        ("vice-city-v3.webp",
-         "VICE CITY OPENS AS GTA VI LAUNCHES",
-         "Queues round the block after a 13-year wait for the game.",
-         0.5),
-        ("cyclone-v3.webp",
-         "CYCLONE AKVAN BEARS DOWN ON INDIA",
-         "The storm nears the coast as evacuations begin.",
-         0.5),
+         "and Bahrain."),
+        ("senate-v3.webp", "JEFFRIES SET TO BE FIRST BLACK SPEAKER",
+         "Democrats nominate him; Peltola's win seals a 56\u201344 majority."),
+        ("vice-city-v3.webp", "VICE CITY OPENS AS GTA VI LAUNCHES",
+         "Queues round the block after a 13-year wait for the game."),
+        ("cyclone-v3.webp", "CYCLONE AKVAN BEARS DOWN ON INDIA",
+         "The storm nears the coast as evacuations begin."),
     ]
-    sw = 232
-    stories_end = y
-    for i, (name, head, deck2, focus) in enumerate(stories):
-        x = MARGIN + i * (sw + 16)
-        put_photo(d, page, os.path.join(ASSETS, name), x, y, sw, 116,
-                  focus=focus)
-        ty = y + 124
-        for line in wrap_text(d, head, font(SERIF_BOLD, 18), sw):
-            d.text((x, ty), line, font=font(SERIF_BOLD, 18), fill=INK)
-            ty += 23
-        ty += 2
-        for line in wrap_text(d, deck2, font(SANS, 13), sw):
-            d.text((x, ty), line, font=font(SANS, 13), fill=BODY_INK)
-            ty += 17
-        stories_end = max(stories_end, ty)
-    y = stories_end + 8
+    story_w, story_gutter = 232, 16
+    story_head = font(SERIF_BOLD, 18)
+    story_deck = font(SANS, 13)
+    block_end = y
+    for i, (photo_name, headline, deck_text) in enumerate(stories):
+        x = MARGIN + i * (story_w + story_gutter)
+        sy = paste_photo(img, os.path.join(ASSETS, photo_name),
+                         x, y, story_w, 116, focus_y=0.45)
+        draw = ImageDraw.Draw(img)
+        sy += 6
+        for line in wrap_text(draw, headline, story_head, story_w):
+            draw.text((x, sy), line, font=story_head, fill=INK)
+            sy += 22
+        sy += 2
+        deck_lines = wrap_text(draw, deck_text, story_deck, story_w)[:2]
+        for line in deck_lines:
+            draw.text((x, sy), line, font=story_deck, fill=BODY)
+            sy += 17
+        block_end = max(block_end, sy)
+    y = block_end + 4
 
-    # --- In brief: three wide columns ------------------------------------
-    rule(d, y, fill=RED, width=2)
-    y += 8
-    d.text((MARGIN, y), "IN BRIEF", font=font(SANS_BOLD, 14), fill=RED)
+    # --- In Brief ---
+    y = hrule(draw, y, 2, RED)
+    y += 6
+    draw.text((MARGIN, y), "IN BRIEF", font=label_font, fill=RED)
     y += 22
     briefs = [
         ("EU \u20ac45BN UKRAINE LOAN",
@@ -237,30 +243,44 @@ def main():
          "Muslims are projected to pass Christians as the world's "
          "largest faith."),
     ]
-    bw = 312
-    for i, (head, text) in enumerate(briefs):
-        x = MARGIN + i * (bw + 20)
-        d.text((x, y), head, font=font(SANS_BOLD, 13), fill=INK)
-        ty = y + 17
-        for line in wrap_text(d, text, font(SERIF, 13), bw):
-            d.text((x, ty), line, font=font(SERIF, 13), fill=BODY_INK)
-            ty += 16
-    y += 17 + 2 * 16 + 8
-    centred(d, y,
-            "theworld.today  \u2014  All the news of Thursday, November 19, "
-            "2026, on one page.",
-            font(SERIF_ITALIC, 12), fill=GREY)
-    y += 18
-    assert y <= PAGE_H, f"layout overflow: y={y}"
-    print("layout bottom y =", y)
+    brief_head = font(SANS_BOLD, 13)
+    brief_body = font(SERIF, 13)
+    brief_end = y
+    for i, (headline, body_text) in enumerate(briefs):
+        x = MARGIN + i * (col_w + gutter)
+        by = y
+        draw.text((x, by), headline, font=brief_head, fill=INK)
+        by += 17
+        for line in wrap_text(draw, body_text, brief_body, col_w)[:2]:
+            draw.text((x, by), line, font=brief_body, fill=BODY)
+            by += 17
+        brief_end = max(brief_end, by)
+    y = brief_end + 6
 
-    page.save(OUT, "PNG", optimize=True)
-    if os.path.getsize(OUT) > 1048576:
-        for q in (88, 82, 76):
-            page.save(OUT, "JPEG", quality=q, optimize=True)
-            if os.path.getsize(OUT) <= 1048576:
+    # --- Footer ---
+    foot_font = font(SERIF_ITALIC, 12)
+    draw_centred(draw, y,
+                 "theworld.today  \u2014  All the news of Thursday, "
+                 "November 19, 2026, on one page.",
+                 foot_font, GREY)
+    y += 18
+
+    assert y <= PAGE_H, f"layout overflow: bottom y={y} > {PAGE_H}"
+    print(f"layout bottom y={y} (page height {PAGE_H})")
+
+    # Save PNG optimised; fall back to JPEG qualities if over 1 MiB.
+    img.save(OUT, format="PNG", optimize=True)
+    size = os.path.getsize(OUT)
+    if size > 1_048_576:
+        for quality in (88, 82, 76):
+            img.convert("RGB").save(OUT, format="JPEG", quality=quality,
+                                    optimize=True)
+            size = os.path.getsize(OUT)
+            print(f"PNG over 1 MiB; saved JPEG quality {quality}: "
+                  f"{size} bytes")
+            if size <= 1_048_576:
                 break
-    print("wrote", OUT, os.path.getsize(OUT), "bytes")
+    print(f"wrote {OUT}: {size} bytes, {img.size[0]}x{img.size[1]}")
 
 
 if __name__ == "__main__":
