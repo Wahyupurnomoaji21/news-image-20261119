@@ -1,32 +1,35 @@
-"""News image entry for 19 November 2026 (Python 3.13, standard library only).
+"""News image entry for 19 November 2026 (Python 3.13, stdlib only).
 
-The front page image lives in this repository as entry.png; the program
+The front-page image lives in this repository as entry.png; the program
 copies it byte for byte to /output/entry.png. No network, no randomness,
-so both grader runs write identical bytes.
+no timestamps in the output, so both grader runs write identical bytes.
 
-Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
+Local check:
     mkdir -p out && MAKEFUN_OUTPUT_DIR=out python3 main.py
 """
 
+import hashlib
 import os
 import shutil
 from pathlib import Path
 
-SRC = Path(__file__).resolve().parent / "entry.png"
+HERE = Path(__file__).resolve().parent
+SOURCE = HERE / "entry.png"
+LIMIT_BYTES = 1_048_576
 
 
-MAX_BYTES = 1048576
-
-
-def main():
+def main() -> None:
     out_dir = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
     out_dir.mkdir(parents=True, exist_ok=True)
-    dest = out_dir / "entry.png"
-    shutil.copyfile(SRC, dest)
-    size = dest.stat().st_size
-    if size > MAX_BYTES:
-        raise SystemExit(f"entry.png is {size} bytes, over the 1 MiB limit")
-    print(f"wrote {dest} ({size} bytes)")
+    target = out_dir / "entry.png"
+    shutil.copyfile(SOURCE, target)
+    data = target.read_bytes()
+    if len(data) > LIMIT_BYTES:
+        raise SystemExit(
+            f"entry.png is {len(data)} bytes, over the 1 MiB limit"
+        )
+    digest = hashlib.sha256(data).hexdigest()
+    print(f"wrote {target} ({len(data)} bytes, sha256 {digest})")
 
 
 if __name__ == "__main__":
