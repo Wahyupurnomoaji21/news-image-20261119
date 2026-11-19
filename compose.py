@@ -1,11 +1,12 @@
-"""Compose the front page for 19 November 2026 (1024x1024).
+"""Compose the v2 front page for 19 November 2026 (1024x1024).
 
-Design: a real broadsheet front page. Times-style serif masthead with a
-thick/thin double rule, a dominant lead photograph with a photo caption,
-a two-column lead story, three pictured stories below, and an "also
-today" strip. All four photographs are realistic press-style images;
-headlines and body copy are drawn with PIL in Liberation Serif /
-Liberation Sans so the type looks like newsprint.
+v2 redesign vs v1: the headline moves ABOVE the lead photograph (classic
+broadsheet hierarchy), the lead story runs in three columns with a staff
+byline, all four photographs are new sharper press shots, and the
+"also today" strip becomes a four-column IN BRIEF section so the EU
+loan, Cyclone Akvan, Voyager 1 and Pew items each get a headline of
+their own instead of one dense line. Times-style serif type, photo
+captions and a credit line.
 
 Every headline was checked against real reporting of 19 November 2026:
 the Shenzhen trilateral was scheduled for Thursday (Reuters, 18 Nov);
@@ -23,7 +24,7 @@ Run: python3 compose.py  ->  writes entry.png beside this file.
 
 import os
 
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ASSETS = os.path.join(HERE, "assets")
@@ -84,16 +85,6 @@ def centred(d, y, text, fnt, fill=INK, x0=0, x1=PAGE_W):
     d.text(((x0 + x1 - w) / 2, y), text, font=fnt, fill=fill)
 
 
-def centred_fit(d, y, text, path, size, x0=MARGIN, x1=RIGHT, fill=INK):
-    """Centre text between x0 and x1, shrinking the font until it fits."""
-    while size > 9:
-        fnt = font(path, size)
-        if d.textlength(text, font=fnt) <= x1 - x0:
-            break
-        size -= 1
-    centred(d, y, text, fnt, fill=fill, x0=x0, x1=x1)
-
-
 def rule(d, y, x0=MARGIN, x1=RIGHT, fill=INK, width=1):
     d.line([(x0, y), (x1, y)], fill=fill, width=width)
 
@@ -116,79 +107,95 @@ def main():
     d = ImageDraw.Draw(page)
 
     # --- Masthead -------------------------------------------------------
-    centred(d, 8, "THE WORLD TODAY", font(SERIF_BOLD, 66))
-    rule(d, 88, width=3)
-    rule(d, 93, width=1)
-    d.text((MARGIN, 100), "LATE CITY EDITION", font=font(SANS_BOLD, 13),
+    centred(d, 6, "THE WORLD TODAY", font(SERIF_BOLD, 64))
+    rule(d, 80, width=3)
+    rule(d, 85, width=1)
+    d.text((MARGIN, 92), "LATE CITY EDITION", font=font(SANS_BOLD, 13),
            fill=GREY)
-    centred(d, 100, "THURSDAY, NOVEMBER 19, 2026", font(SANS_BOLD, 20))
+    centred(d, 92, "THURSDAY, NOVEMBER 19, 2026", font(SANS_BOLD, 20))
     price = "PRICE $2.50"
-    d.text((RIGHT - d.textlength(price, font=font(SANS_BOLD, 13)), 100),
+    d.text((RIGHT - d.textlength(price, font=font(SANS_BOLD, 13)), 92),
            price, font=font(SANS_BOLD, 13), fill=GREY)
-    rule(d, 126, width=1)
+    rule(d, 116, fill=RED, width=1)
 
-    # --- Lead photograph ------------------------------------------------
-    put_photo(d, page, os.path.join(ASSETS, "summit.webp"),
-              MARGIN, 136, 976, 250)
-    caption = ("Trump, Xi and Putin in Shenzhen on Wednesday, before the "
-               "first trilateral meeting of sitting U.S., Chinese and "
-               "Russian presidents on Thursday.")
-    d.text((MARGIN, 392), caption, font=font(SERIF_ITALIC, 14), fill=GREY)
-
-    # --- Lead story -----------------------------------------------------
-    d.text((MARGIN, 416), "SUMMIT IN SHENZHEN  \u2022  APEC",
+    # --- Lead headline above the photograph -----------------------------
+    d.text((MARGIN, 126), "SUMMIT IN SHENZHEN  \u2022  APEC",
            font=font(SANS_BOLD, 18), fill=RED)
-    y = 440
+    y = 148
     for line in ("THREE PRESIDENTS, ONE TABLE",
-                 "AS TRUMP, XI AND PUTIN MEET"):
-        d.text((MARGIN, y), line, font=font(SERIF_BOLD, 40), fill=INK)
-        y += 46
+                 "AND THE WHOLE WORLD WATCHING"):
+        d.text((MARGIN, y), line, font=font(SERIF_BOLD, 45), fill=INK)
+        y += 51
     deck = ("First trilateral of sitting U.S., Chinese and Russian leaders "
             "puts Ukraine, Iran, nuclear arms, AI and trade on the table.")
+    y += 2
+    for line in wrap_text(d, deck, font(SANS, 16), 976):
+        d.text((MARGIN, y), line, font=font(SANS, 16), fill=(52, 50, 46))
+        y += 21
     y += 4
-    for line in wrap_text(d, deck, font(SANS, 17), 976):
-        d.text((MARGIN, y), line, font=font(SANS, 17), fill=(52, 50, 46))
-        y += 23
-    y += 6
-    col_w = 478
-    left = ("SHENZHEN \u2014 Donald Trump, Xi Jinping and Vladimir Putin "
-            "meet on Thursday for the first trilateral meeting of sitting "
-            "American, Chinese and Russian presidents, a summit years in "
-            "the making that puts the wars in Ukraine and Iran, nuclear "
-            "arms, AI and world trade on one table.")
-    right = ("Trump arrived in Shenzhen on Wednesday, welcomed at the "
-             "airport by Xi, then shook hands with Putin at the APEC "
-             "welcome event \u2014 their first meeting in more than a "
-             "year. No agreement was expected, but the world watched what "
-             "three presidents could say to each other.")
-    column(d, MARGIN, y, col_w, left, font(SERIF, 14), leading=18)
-    column(d, 522, y, col_w, right, font(SERIF, 14), leading=18)
-    y += 5 * 18 + 8
+    d.text((MARGIN, y), "By THE WORLD TODAY STAFF",
+           font=font(SANS_BOLD, 11), fill=GREY)
+    byline_r = "SHENZHEN, WASHINGTON AND LONDON"
+    d.text((RIGHT - d.textlength(byline_r, font=font(SANS_BOLD, 11)), y),
+           byline_r, font=font(SANS_BOLD, 11), fill=GREY)
+    y += 18
+
+    # --- Lead photograph ------------------------------------------------
+    put_photo(d, page, os.path.join(ASSETS, "summit-v2.webp"),
+              MARGIN, y, 976, 232, focus=0.42)
+    y += 232 + 6
+    caption = ("Trump, Xi and Putin at the table in Shenzhen on Wednesday, "
+               "ahead of the first trilateral meeting of sitting U.S., "
+               "Chinese and Russian presidents on Thursday.")
+    for line in wrap_text(d, caption, font(SERIF_ITALIC, 13), 976):
+        d.text((MARGIN, y), line, font=font(SERIF_ITALIC, 13), fill=GREY)
+        y += 17
+    y += 4
+
+    # --- Lead body, three columns ---------------------------------------
+    cols = [
+        ("SHENZHEN \u2014 Donald Trump, Xi Jinping and Vladimir Putin meet "
+         "on Thursday for the first trilateral meeting of sitting "
+         "American, Chinese and Russian presidents, a summit years in "
+         "the making."),
+        ("The agenda runs from the wars in Ukraine and Iran to nuclear "
+         "arms, artificial intelligence and world trade. Trump arrived "
+         "on Wednesday, welcomed at the airport by Xi."),
+        ("He then shook hands with Putin at the APEC welcome event "
+         "\u2014 their first meeting in more than a year. No agreement "
+         "was expected, but the world watched what three presidents "
+         "could say to each other."),
+    ]
+    col_w = 312
+    for i, text in enumerate(cols):
+        column(d, MARGIN + i * (col_w + 20), y, col_w,
+               text, font(SERIF, 14), leading=18)
+    y += 4 * 18 + 6
     rule(d, y, width=2)
+    y += 12
 
     # --- Three pictured stories ----------------------------------------
-    y += 12
     stories = [
-        ("gulf-war.webp",
+        ("gulf-v2.webp",
          "GULF WAR WIDENS AS U.S. STRIKES IRAN",
          "A tanker burns in the Strait as Iranian drones reach Kuwait "
          "and Bahrain.",
-         0.45),
-        ("senate.webp",
+         0.5),
+        ("senate-v2.webp",
          "JEFFRIES SET TO BE FIRST BLACK SPEAKER",
          "House Democrats nominate him; Peltola's Alaska win seals a "
          "56\u201344 Senate majority.",
-         0.5),
-        ("vice-city.webp",
+         0.45),
+        ("vice-city-v2.webp",
          "GAMERS ENTER VICE CITY AS GTA VI LAUNCHES",
          "Queues round the block after a 13-year wait for the game.",
          0.5),
     ]
     for i, (name, head, deck2, focus) in enumerate(stories):
         x = MARGIN + i * 334
-        put_photo(d, page, os.path.join(ASSETS, name), x, y, 308, 168,
+        put_photo(d, page, os.path.join(ASSETS, name), x, y, 308, 148,
                   focus=focus)
-        ty = y + 178
+        ty = y + 156
         for line in wrap_text(d, head, font(SERIF_BOLD, 19), 308):
             d.text((x, ty), line, font=font(SERIF_BOLD, 19), fill=INK)
             ty += 24
@@ -196,19 +203,44 @@ def main():
         for line in wrap_text(d, deck2, font(SANS, 13), 308):
             d.text((x, ty), line, font=font(SANS, 13), fill=BODY_INK)
             ty += 17
-    bottom = y + 178 + 3 * 24 + 2 + 2 * 17
+    y += 156 + 2 * 24 + 2 + 2 * 17 + 6
 
-    # --- Also today ------------------------------------------------------
-    rule(d, bottom + 6, fill=RED, width=2)
-    centred_fit(d, bottom + 14,
-                "ALSO TODAY:  EU \u20ac45BN UKRAINE LOAN  \u2022  CYCLONE "
-                "AKVAN NEARS INDIA  \u2022  VOYAGER 1 HITS LIGHT-DAY  "
-                "\u2022  PEW: ISLAM LARGEST FAITH BY 2035",
-                SANS_BOLD, 14)
-    centred(d, bottom + 38,
+    # --- In brief: four columns -----------------------------------------
+    rule(d, y, fill=RED, width=2)
+    y += 8
+    d.text((MARGIN, y), "IN BRIEF", font=font(SANS_BOLD, 14), fill=RED)
+    y += 22
+    briefs = [
+        ("EU \u20ac45BN UKRAINE LOAN",
+         "Brussels proposes a big new loan to keep Kyiv funded through "
+         "the war."),
+        ("CYCLONE AKVAN NEARS INDIA",
+         "The storm bears down on the coast as evacuations begin."),
+        ("VOYAGER 1 HITS LIGHT-DAY",
+         "NASA marks a day of light travelled by the farthest "
+         "human-made object."),
+        ("PEW: ISLAM LARGEST BY 2035",
+         "Muslims are projected to pass Christians as the world's "
+         "largest faith."),
+    ]
+    bw = 232
+    for i, (head, text) in enumerate(briefs):
+        x = MARGIN + i * (bw + 16)
+        for line in wrap_text(d, head, font(SANS_BOLD, 12), bw):
+            d.text((x, y), line, font=font(SANS_BOLD, 12), fill=INK)
+            y_head = y + 15
+        ty = y + 15
+        for line in wrap_text(d, text, font(SERIF, 12), bw):
+            d.text((x, ty), line, font=font(SERIF, 12), fill=BODY_INK)
+            ty += 15
+    y += 15 + 2 * 15 + 8
+    centred(d, y,
             "theworld.today  \u2014  All the news of Thursday, November 19, "
             "2026, on one page.",
-            font(SERIF_ITALIC, 13), fill=GREY)
+            font(SERIF_ITALIC, 12), fill=GREY)
+    y += 18
+    assert y <= PAGE_H, f"layout overflow: y={y}"
+    print("layout bottom y =", y)
 
     page.save(OUT, "PNG", optimize=True)
     if os.path.getsize(OUT) > 1048576:
